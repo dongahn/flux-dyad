@@ -24,5 +24,6 @@ To run the test
 
 ```
 LD_PRELOAD=<path to libdyad_sync.so> consumer_test
-
 ```
+
+To enable debug trace, set the `DYAD_SYNC_DEBUG` environment variable to 1.
