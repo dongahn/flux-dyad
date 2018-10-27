@@ -53,3 +53,7 @@ int main (int argc, char *argv[])
 
     done_testing ();
 }
+
+/*
+ * vi: ts=4 sw=4 expandtab
+ */
