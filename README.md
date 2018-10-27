@@ -7,7 +7,7 @@ cd src/wrapper
 make
 ```
 
-To build `libtap.so`
+To build `libtap.a`
 
 ```
 cd src/libtap
