@@ -1,23 +1,55 @@
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
 #include "../../libtap/tap.h"
 
-void test_valid_paths ()
+int dyad_sync_health ()
+{
+    char *e = NULL;
+    if ((e = getenv ("DYAD_SYNC_HEALTH"))) {
+        if (!strcmp ("ok", e))
+            return 0;
+    }
+    return -1;
+}
+
+void test_open_valid_path ()
+{
+    int fd = -1;
+
+    setenv ("DYAD_SYNC_HEALTH", "test", 1);
+    fd = open ("./data1.txt", O_RDONLY);
+    ok (!(fd < 0) && (dyad_sync_health () == 0), "dyad open sync worked");
+
+    setenv ("DYAD_SYNC_HEALTH", "test", 1);
+    close (fd);
+    ok ((dyad_sync_health () == 0), "dyad close sync worked");
+}
+
+void test_fopen_valid_path ()
 {
     int rc = -1;
     FILE *fptr = NULL;
-    FILE *fopen_sync = NULL;
-    FILE *fclose_sync = NULL;
 
-    fptr = fopen ("./data1.txt", "r");
-    ok ((fptr != NULL), "fopen worked");
-    rc = access ("./fopen_sync", R_OK);
-    ok (!rc, "dyad fopen wrapper worked");
+    setenv ("DYAD_SYNC_HEALTH", "test", 1);
+    fptr = fopen ("./data2.txt", "r");
+    ok ((fptr != NULL) && (dyad_sync_health () == 0), "dyad fopen sync worked");
+
+    setenv ("DYAD_SYNC_HEALTH", "test", 1);
     rc = fclose (fptr);
-    ok (!rc, "fclose worked");
-    rc = access ("./fclose_sync", R_OK);
-    ok (!rc, "dyad fclose wrapper worked");
+    ok ((rc == 0) && (dyad_sync_health () == 0), "dyad fclose sync worked");
 }
 
-int main (int argc, char *argv)
+int main (int argc, char *argv[])
 {
-    test_valid_paths ();
+    plan (4);
+
+    setenv ("DYAD_PATH", "./", 1);
+
+    test_open_valid_path ();
+
+    test_fopen_valid_path ();
+
+    done_testing ();
 }
