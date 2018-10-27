@@ -1,5 +1,5 @@
 #define DPRINTF(fmt,...) do { \
-    fprintf (stderr, fmt, ##__VA_ARGS__); \
+    if (debug == 1) fprintf (stderr, fmt, ##__VA_ARGS__); \
 } while (0)
 
 /*

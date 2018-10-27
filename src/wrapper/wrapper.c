@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <libgen.h>
 #include <dlfcn.h>
 #include <limits.h>
@@ -10,7 +11,9 @@
 // #include <flux.h>
 
 #define DYAD_PATH_ENV "DYAD_PATH"
+#define DYAD_CHECK_ENV "DYAD_SYNC_HEALTH"
 
+static int debug = 0;
 
 static inline int cannonical_pathcmp (const char *p1, const char *p2)
 {
@@ -18,92 +21,166 @@ static inline int cannonical_pathcmp (const char *p1, const char *p2)
     char cann_path1[PATH_MAX];
     char cann_path2[PATH_MAX];
     if (!realpath (p1, cann_path1)) {
-        DPRINTF ("error in realpath for %s (%s)\n", p1, strerror (errno));
+        DPRINTF ("DYAD_SYNC: error in realpath for %s\n", p1);
+        DPRINTF ("DYAD_SYNC: %s\n", strerror (errno));
         return -1;
     }
     if (!realpath (p2, cann_path2)) {
-        DPRINTF ("error in realpath for %s\n", p2, strerror (errno));
+        DPRINTF ("DYAD_SYNC: error in realpath for %s\n", p2);
+        DPRINTF ("DYAD_SYNC: %s\n", strerror (errno));
         return -1;
     }
     return strcmp (cann_path1, cann_path2);
 }
 
-
-FILE *fopen (const char *path, const char *mode)
+static int open_sync (const char *path)
 {
     char cp[PATH_MAX];
     char *dir = NULL;
-    char *error = NULL;
     char *dyad_path = NULL;
-    FILE *(*func_ptr) (const char *path, const char *mode) = NULL;
 
-    func_ptr = dlsym (RTLD_NEXT, "fopen");
-    if (!(error = dlerror ())) {
-        DPRINTF ("error in dlsym: %s\n", error);
-        return NULL;
-    }
     if (!(dyad_path = getenv (DYAD_PATH_ENV))) {
-        DPRINTF ("%s environment variable is not set.\n");
-        goto real_call;
+        DPRINTF ("DYAD_SYNC: %s envVar is not set.\n", DYAD_PATH_ENV);
+        return 0;
     }
+    DPRINTF ("%s=%s.\n", DYAD_PATH_ENV, dyad_path);
 
     dir = dirname (strncpy (cp, path, PATH_MAX));
-    if (!cannonical_pathcmp (dyad_path, dir)) {
+    if (!cannonical_pathcmp (dyad_path, dir))
         DPRINTF ("Do flux synchronization here \n");
+
 #ifdef DYAD_CHECK
-        FILE *tp = NULL;
-        remove ("./fopen_sync");
-        tp = fopen ("./fopen_sync", "rw");
-        fclose (tp);
+    setenv (DYAD_CHECK_ENV, "ok", 1);
 #endif
+    return 0;
+}
+
+static int close_sync (int fd)
+{
+    char *dir = NULL;
+    char *dyad_path = NULL;
+    char cp[PATH_MAX];
+    char path[PATH_MAX];
+    char proclink[PATH_MAX];
+
+    if (!(dyad_path = getenv (DYAD_PATH_ENV))) {
+        DPRINTF ("DYAD_SYNC:%s envVar is not set.\n", DYAD_PATH_ENV);
+        return 0;
     }
+    DPRINTF ("DYAD_SYNC: %s=%s.\n", DYAD_PATH_ENV, dyad_path);
+
+    sprintf (proclink, "/proc/self/fd/%d", fd);
+    if (readlink (proclink, path, PATH_MAX) < 0) {
+        DPRINTF ("DYAD_SYNC: error reading the file link: %s\n", proclink);
+        return 0;
+    }
+    DPRINTF ("DYAD_SYNC: file path: %s.\n", path);
+
+    dir = dirname (strncpy (cp, path, PATH_MAX));
+    if (!cannonical_pathcmp (dyad_path, dir))
+        DPRINTF ("Do flux synchronization here \n");
+
+#ifdef DYAD_CHECK
+    setenv (DYAD_CHECK_ENV, "ok", 1);
+#endif
+    return 0;
+}
+
+void dyad_sync_init ()
+{
+    char *e = NULL;
+    if ((e = getenv ("DYAD_SYNC_DEBUG")))
+        debug = 1;
+}
+
+int open (const char *path, int oflag)
+{
+    char *error = NULL;
+    int (*func_ptr) (const char *, int) = NULL;
+
+    DPRINTF ("DYAD_SYNC: open sync begins.\n");
+
+    func_ptr = dlsym (RTLD_NEXT, "open");
+    if ((error = dlerror ())) {
+        DPRINTF ("DYAD_SYNC: error in dlsym: %s\n", error);
+        return -1;
+    }
+
+    DPRINTF ("DYAD_SYNC: dlsym succeeded.\n");
+
+    if (!path)
+        goto real_call;
+    if (open_sync (path) < 0)
+        return -1;
+
+real_call:
+    return (func_ptr (path, oflag));
+}
+
+FILE *fopen (const char *path, const char *mode)
+{
+    char *error = NULL;
+    FILE *(*func_ptr) (const char *, const char *) = NULL;
+
+    DPRINTF ("DYAD_SYNC: fopen sync begins.\n");
+
+    func_ptr = dlsym (RTLD_NEXT, "fopen");
+    if ((error = dlerror ())) {
+        DPRINTF ("DYAD_SYNC: error in dlsym: %s\n", error);
+        return NULL;
+    }
+    DPRINTF ("DYAD_SYNC: dlsym succeeded.\n");
+
+    if (!path)
+        goto real_call;
+    if (open_sync (path) < 0)
+        return NULL;
 
 real_call:
     return (func_ptr (path, mode));
 }
 
+int close (int fd)
+{
+    char *error = NULL;
+    int (*func_ptr) (int) = NULL;
+
+    DPRINTF ("DYAD_SYNC: close sync begins.\n");
+
+    func_ptr = dlsym (RTLD_NEXT, "close");
+    if ((error = dlerror ())) {
+        DPRINTF ("DYAD_SYNC: error in dlsym: %s\n", error);
+        return -1;
+    }
+    DPRINTF ("DYAD_SYNC: dlsym succeeded.\n");
+
+    if (fd < 0)
+        goto real_call;
+    if (close_sync (fd) < 0)
+        return -1;
+
+real_call:
+    return (func_ptr (fd));
+}
 
 int fclose (FILE *fp)
 {
-    int fno = -1;
-    char *dir = NULL;
     char *error = NULL;
-    char *dyad_path = NULL;
-    char cp[PATH_MAX];
-    char path[PATH_MAX];
-    char proclink[PATH_MAX];
-    int (*func_ptr) (FILE *fp) = NULL;
+    int (*func_ptr) (FILE *) = NULL;
+
+    DPRINTF ("DYAD_SYNC: fclose sync begins.\n");
 
     func_ptr = dlsym (RTLD_NEXT, "fclose");
-    if (!(error = dlerror ())) {
-        DPRINTF ("error in dlsym: %s\n", error);
+    if ((error = dlerror ())) {
+        DPRINTF ("DYAD_SYNC: error in dlsym: %s\n", error);
         return -1;
     }
-    if (!fp) {
-        DPRINTF ("Invalid FILE object\n");
-        goto real_call;
-    }
-    if (!(dyad_path = getenv (DYAD_PATH_ENV))) {
-        DPRINTF ("%s environment variable is not set.\n");
-        goto real_call;
-    }
+    DPRINTF ("DYAD_SYNC: dlsym succeeded.\n");
 
-    fno = fileno (fp);
-    sprintf (proclink, "/proc/self/fd/%d", fno);
-    if (readlink (proclink, path, PATH_MAX) < 0) {
-        DPRINTF ("error reading the file link: %s\n", proclink);
+    if (!fp)
         goto real_call;
-    }
-    dir = dirname (strncpy (cp, path, PATH_MAX));
-    if (!cannonical_pathcmp (dyad_path, dir)) {
-        DPRINTF ("Do flux synchronization here \n");
-#ifdef DYAD_CHECK
-        FILE *tp = NULL;
-        remove ("./fclose_sync");
-        tp = fopen ("./fclose_sync", "rw");
-        fclose (tp);
-#endif
-    }
+    if (close_sync (fileno (fp)) < 0)
+        return -1;
 
 real_call:
     return (func_ptr (fp));
