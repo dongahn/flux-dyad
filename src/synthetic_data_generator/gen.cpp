@@ -30,6 +30,9 @@ int main(int argc, char** argv)
   if (argc == 2) {
     std::vector<sample_t> samples;
     load_a_file(argv[1], samples);
+    for (const auto& sample: samples) {
+      std::cout << sample.first << "\t" << sample.second << std::endl;
+    }
     return 0;
   } else if (argc == 7) {
     const std::string file1 = argv[1];
