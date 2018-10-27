@@ -4,10 +4,10 @@ CFLAGS := -g -O0 -fpic -I./
 all: libdyad_sync.so
 
 libdyad_sync.so: wrapper.o
-	$(CC) $(CFLAGS) -DDYAD_CHECK=1 $^ -shared -o $@ -ldl
+	$(CC) $(CFLAGS) -Wall -Wl,-init,dyad_sync_init $^ -shared -o $@ -ldl
 
 wrapper.o: wrapper.c wrapper.h
-	$(CC) $(CFLAGS) $< -c -o $@
+	$(CC) $(CFLAGS) -Wall -DDYAD_CHECK=1 $< -c -o $@
 
 .PHONY: clean
 
