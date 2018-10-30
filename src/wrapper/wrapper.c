@@ -126,6 +126,8 @@ static int subscribe_via_flux (const char *fn)
 
     if (!ctx->h)
         goto done;
+    if (flux_event_subscribe (ctx->h, "dyad.sync.producer") != 0)
+        goto done;
 
     while (1) {
         if (!(msg = flux_recv (ctx->h, match, 0)))
@@ -273,11 +275,6 @@ void dyad_sync_init (void)
         ctx->check = false;
     if (!(ctx->h = flux_open (NULL, 0)))
         DPRINTF ("DYAD_SYNC: can't open flux\n");
-    if (ctx->h) {
-        // TODO: Filter by producer name as well
-        if (flux_event_subscribe (ctx->h, "dyad.sync.producer") != 0)
-            DPRINTF ("DYAD_SYNC: dyad sync event subscription failed!\n");
-    }
     ctx->reenter = true;
 }
 
