@@ -55,11 +55,6 @@ typedef struct {
     bool reenter;
 } dyad_sync_ctx_t;
 
-typedef enum {
-    DYAD_PRODUCER,
-    DYAD_CONSUMER
-} dyad_kind_t;
-
 static dyad_sync_ctx_t *ctx = NULL;
 static void dyad_sync_init (void) __attribute__((constructor));
 static void dyad_sync_fini (void) __attribute__((destructor));
